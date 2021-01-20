@@ -34,7 +34,6 @@ async function parseCSVData(filePath: string) {
                     parser.pause()
                     await storeData(allData);
                     count += allData.length;
-                    console.log(`Added records for: ${count}`);
                     allData = [];
                     parser.resume();
                 } 
@@ -43,7 +42,6 @@ async function parseCSVData(filePath: string) {
                 if (allData.length > 0) {
                     await storeData(allData);
                     count += allData.length;
-                    console.log(`Added records for: ${count}`);
                 }
 
                 let totalTime = Date.now() - startTime;
@@ -58,20 +56,22 @@ async function storeData(allData: any[]) {
 }
 
 router.post('/', async (req: Request, res:Response) => {
-    console.log('Api called /sales/record');
     let file: any = req.files ? req.files.dataFile : undefined;
 
     if (file) {
         let filePath = path.join(__dirname, file.name);
         await file.mv(filePath)
-        console.log('filePath: ', filePath);
-        res.status(200).send('Finished uploading file');
         
         await parseCSVData(filePath);
         //cleanup
         fs.unlinkSync(filePath);
+        res.status(200).send({
+            msg: 'Finished uploading file'
+        });
     } else {
-        res.status(400).send('Error - Upload file again');
+        res.status(400).send({
+            errorMsg: 'Please upload the data file'
+        });
     }
 });
 
