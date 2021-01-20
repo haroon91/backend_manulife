@@ -20,13 +20,41 @@ function transformDate(date: Date): string {
     return date.toISOString().replace(/T/, ' ').replace(/\..+/, '');
 }
 
+function composeApiResponse(count: Number, recordsPerPage: Number, totalPages: Number, currentPage: Number, records: Object[]): Object {
+    let result = {
+        totalRecords: count,
+        recordsPerPage,
+        totalPages,
+        currentPage,
+        records,
+    }
+    return result;
+}
+
 router.get('/', async (req: Request, res:Response) => {
-    let { startDate, endDate } = req.query;
-    console.log(`Start: ${startDate}`);
-    console.log(`End: ${endDate}`);
+    const { startDate, endDate, limit=1000, page=0 } = req.query;
 
     let sDate, eDate;
 
+    let nRecords = 1000;
+    let currentPage = 0;
+    let offset = 0;
+
+    if (limit) {
+        nRecords = Number(limit);
+        if (isNaN(nRecords)){
+            nRecords = 1000;
+        }
+    }
+    if (page) {
+        currentPage = Number(page);
+        offset = currentPage * nRecords;
+        if (isNaN(currentPage)){
+            currentPage=0;
+            offset = 0;
+        }
+    }
+    
     if (startDate) {
         sDate = getDate(startDate);
         if (!isValidDate(sDate)) {
@@ -35,7 +63,6 @@ router.get('/', async (req: Request, res:Response) => {
             });
         }
         sDate = transformDate(sDate);
-        console.log('sDate', sDate);
     }
 
     if (endDate) {
@@ -48,18 +75,51 @@ router.get('/', async (req: Request, res:Response) => {
         eDate = transformDate(eDate);
     }
 
+    let items: any;
+    let result: any;
+
     if (sDate && !eDate) {
-        console.log('now: ', transformDate(new Date()));
-        const items = await Record.findAll({ limit: 12 });
-        console.log(items);
-        return res.status(200).send(items);
+        //find from startDate to now
+        items = await Record.findAndCountAll({ 
+            where: {
+                LAST_PURCHASE_DATE: {
+                    [Op.between]: [sDate, transformDate(new Date())]
+                }
+            },
+            limit: nRecords,
+            offset
+        });
 
     } else if (!sDate && eDate){
+        //find all from less than or equal endDate
+        items = await Record.findAndCountAll({ 
+            where: {
+                LAST_PURCHASE_DATE: {
+                    [Op.lte]: eDate
+                }
+            },
+            limit: nRecords,
+            offset
+        });
 
     } else if (sDate && eDate) {
-
+        items = await Record.findAndCountAll({ 
+            where: {
+                LAST_PURCHASE_DATE: {
+                    [Op.between]: [sDate, eDate]
+                }
+            },
+            limit: nRecords,
+            offset
+        });
+    } else {
+        //find all items
+        items = await Record.findAndCountAll({ limit: nRecords, offset });
     }
-    res.status(200).send('/sales/report');
+    let totalPages = Math.floor((items.count / nRecords));
+
+    result = composeApiResponse(items.count, nRecords, totalPages, currentPage, items.rows);
+    return res.status(200).send(result);
 });
 
 
