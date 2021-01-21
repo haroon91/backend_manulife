@@ -1,0 +1,17 @@
+language: node_js
+node_js:
+  - 13
+
+services:
+  - docker
+
+
+script:
+  - docker --version
+  - docker build -t backend_manulife .
+  - docker tag backend_manulife haroon91/backend_manulife:latest
+
+after_success:
+  - echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
+  - docker push haroon91/backend_manulife
+
